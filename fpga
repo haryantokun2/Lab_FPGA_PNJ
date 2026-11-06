@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lab FPGA PNJ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: meja lab — kolom tunggal 1080px, navigasi lengket, kalkulator sebagai panel instrumen dua kolom (masukan | hasil) */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --sunk:#F5F7F9; --ink:#14202B; --muted:#56636F; --line:#D2D9E0;
+  --led:#D7263D; --led-soft:#FBE7EA; --signal:#0E7A8A; --signal-soft:#E2F2F4; --warn:#B26A00; --warn-soft:#FFF3DF; --ok:#1F7A4A; --ok-soft:#E3F3EA;
+  --panel:#11161B; --panel-ink:#C9D3DC; --seg-on:#FF3B3B; --seg-off:#2A1C1F; --code-bg:#11161B; --code-ink:#DCE4EA; --code-kw:#FF8A80; --code-cm:#7F8C97; --code-num:#F2C46D;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --f-body:"IBM Plex Sans","Segoe UI",Roboto,Arial,sans-serif; --f-mono:"JetBrains Mono",Consolas,"Courier New",monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1317; --surface:#161E25; --sunk:#121920; --ink:#E2E8ED; --muted:#93A1AD; --line:#2A3540;
+  --led:#FF5A64; --led-soft:#3A1E23; --signal:#3FB8C9; --signal-soft:#16313A; --warn:#F0B44C; --warn-soft:#3A2D14; --ok:#5CCB8C; --ok-soft:#163323;
+  --panel:#0A0E11; --panel-ink:#AEB9C3; --seg-on:#FF4D4D; --seg-off:#22171A; --code-bg:#0A0E11; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1317; --surface:#161E25; --sunk:#121920; --ink:#E2E8ED; --muted:#93A1AD; --line:#2A3540;
+  --led:#FF5A64; --led-soft:#3A1E23; --signal:#3FB8C9; --signal-soft:#16313A; --warn:#F0B44C; --warn-soft:#3A2D14; --ok:#5CCB8C; --ok-soft:#163323;
+  --panel:#0A0E11; --panel-ink:#AEB9C3; --seg-on:#FF4D4D; --seg-off:#22171A; --code-bg:#0A0E11; color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h2{font-size:2rem;line-height:1.1}
+h3{font-size:1.3rem;font-weight:600}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+.eyebrow{font-family:var(--f-display);font-weight:600;font-size:.95rem;letter-spacing:.14em;text-transform:uppercase;color:var(--signal)}
+a{color:var(--signal)}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+/* nav */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--surface);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:20px;min-height:52px;overflow-x:auto;scrollbar-width:none}
+.nav .wrap::-webkit-scrollbar{display:none}
+.brand{font-family:var(--f-display);font-weight:700;font-size:1.15rem;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.brand i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--led);box-shadow:0 0 8px var(--led)}
+.nav a{color:var(--muted);text-decoration:none;font-weight:500;white-space:nowrap;font-size:.93rem}
+.nav a:hover{color:var(--ink)}
+
+/* hero */
+.hero{padding-block:40px 28px}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:center}
+.hero h1{font-size:clamp(2.3rem,5vw,3.4rem);line-height:1.02;margin-top:8px}
+.hero .lead{color:var(--muted);margin-top:14px;max-width:56ch}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{font-family:var(--f-mono);font-size:.78rem;padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.scope{background:var(--panel);border-radius:10px;padding:22px 22px 16px;color:var(--panel-ink)}
+.scope svg{width:100%;height:auto;display:block}
+.scope .cap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--f-mono);font-size:.74rem;margin-top:12px;color:var(--panel-ink)}
+.scope .cap b{color:var(--seg-on);font-weight:600}
+
+section{padding-block:36px}
+.sec-head{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.sec-head p{color:var(--muted);max-width:68ch}
+
+/* calculator */
+.fclk{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:14px}
+.fclk label{font-weight:600}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:-1px;position:relative}
+.tab{font:inherit;font-weight:600;font-size:.92rem;padding:9px 14px;border:1px solid var(--line);border-bottom:none;background:var(--sunk);color:var(--muted);border-radius:var(--r) var(--r) 0 0;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 3px 0 var(--led)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:0 var(--r) var(--r) var(--r);padding:20px}
+.calc{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:24px}
+.inputs{display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-weight:600;font-size:.9rem}
+.field small{color:var(--muted);font-size:.8rem}
+.row{display:flex;gap:8px}
+input[type=number],select{font:inherit;font-family:var(--f-mono);font-size:.95rem;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunk);color:var(--ink);min-width:0;width:100%}
+select{width:auto;min-width:76px}
+.seg-ctl{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg-ctl button{font:inherit;font-size:.85rem;padding:6px 12px;border:none;background:var(--sunk);color:var(--muted);cursor:pointer}
+.seg-ctl button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{font:inherit;font-size:.78rem;padding:4px 9px;border:1px dashed var(--line);border-radius:999px;background:transparent;color:var(--muted);cursor:pointer}
+.presets button:hover{color:var(--ink);border-style:solid}
+.formula{font-family:var(--f-mono);font-size:.85rem;background:var(--sunk);border-radius:var(--r);padding:10px 12px;color:var(--ink)}
+.results{display:flex;flex-direction:column;gap:12px;min-width:0}
+.big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big .lab{font-family:var(--f-display);font-weight:600;font-size:1.05rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.big .val{font-family:var(--f-mono);font-weight:600;font-size:clamp(1.6rem,3.6vw,2.3rem);color:var(--led);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kv div{background:var(--sunk);border-radius:var(--r);padding:8px 10px;min-width:0}
+.kv span{display:block;font-size:.76rem;color:var(--muted)}
+.kv b{font-family:var(--f-mono);font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.status{font-size:.86rem;padding:8px 12px;border-radius:var(--r);border-left:3px solid}
+.status.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ink)}
+.status.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--ink)}
+.status.bad{background:var(--led-soft);border-color:var(--led);color:var(--ink)}
+.code{position:relative;background:var(--code-bg);color:var(--code-ink);border-radius:var(--r);padding:12px 14px;overflow-x:auto}
+.code pre{margin:0;padding-right:62px;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;white-space:pre}
+.code .kw{color:var(--code-kw);font-weight:600}.code .cm{color:var(--code-cm);font-style:italic}.code .nm{color:var(--code-num)}
+.copy{position:absolute;top:8px;right:8px;font:inherit;font-size:.74rem;padding:3px 9px;border:1px solid #3A4651;border-radius:4px;background:#1C242B;color:#C9D3DC;cursor:pointer}
+.copy:hover{background:#26313A}
+.diagram{background:var(--sunk);border-radius:var(--r);padding:10px 8px 6px;overflow-x:auto}
+.diagram svg{display:block;min-width:460px;width:100%;height:auto}
+.diagram small{display:block;color:var(--muted);font-size:.76rem;padding:2px 6px 0}
+
+/* weeks */
+.weeks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.wk{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.wk .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.wk .no{font-family:var(--f-display);font-weight:700;font-size:1.5rem;line-height:1}
+.tag{font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+.tag.sch{background:var(--signal-soft);color:var(--signal)}
+.tag.v{background:var(--led-soft);color:var(--led)}
+.tag.ex{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.wk p{font-size:.88rem}
+.wk .mods{display:flex;flex-wrap:wrap;gap:4px}
+.wk .mods code{font-size:.72rem;background:var(--sunk);padding:1px 6px;border-radius:3px;color:var(--muted)}
+.wk.exam{background:var(--sunk)}
+
+/* board */
+.board{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:18px;align-items:start}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-display);font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:.85rem;color:var(--muted);background:var(--sunk)}
+tr:last-child td{border-bottom:none}
+td.pin{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pol{font-size:.8rem;font-weight:600;white-space:nowrap}
+.pol.low{color:var(--led)}.pol.note{color:var(--warn)}
+.notes{display:flex;flex-direction:column;gap:10px}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.note h3{font-size:1.08rem;margin-bottom:4px}
+.note p{font-size:.88rem;color:var(--muted)}
+.note.alert{border-color:var(--led)}
+.note.alert h3{color:var(--led)}
+
+/* modules */
+.mods-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+.mod-list{display:flex;flex-direction:column;gap:6px}
+.mod-list button{font:inherit;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink);cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.mod-list button b{font-family:var(--f-mono);font-size:.88rem}
+.mod-list button span{font-size:.78rem;color:var(--muted)}
+.mod-list button[aria-selected="true"]{border-color:var(--led);box-shadow:inset 3px 0 0 var(--led)}
+.mod-view{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mod-view p{color:var(--muted);font-size:.9rem}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.rule{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:6px}
+.rule .pair{font-family:var(--f-mono);font-size:.88rem;color:var(--led);font-weight:600}
+.rule p{font-size:.88rem;color:var(--muted)}
+
+footer{padding-block:28px 40px;color:var(--muted);font-size:.84rem;border-top:1px solid var(--line);margin-top:20px}
+footer .wrap{display:flex;flex-direction:column;gap:6px}
+
+@media (max-width:860px){
+  .hero .wrap,.calc,.board,.mods-grid{grid-template-columns:minmax(0,1fr)}
+  .weeks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rules{grid-template-columns:minmax(0,1fr)}
+  .mod-list{flex-direction:row;flex-wrap:wrap}
+  .mod-list button{flex:1 1 140px}
+}
+@media (max-width:460px){.weeks{grid-template-columns:minmax(0,1fr)}h2{font-size:1.7rem}}
+</style>
+</head>
+<body>
+
+
+<nav class="nav" aria-label="Navigasi">
+  <div class="wrap">
+    <span class="brand"><i aria-hidden="true"></i>Lab FPGA</span>
+    <a href="#kalkulator">Kalkulator clock</a>
+    <a href="#peta">Peta 16 minggu</a>
+    <a href="#board">Board &amp; pin</a>
+    <a href="#modul">Modul inti</a>
+    <a href="#aturan">Aturan emas</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">D4 Instrumentasi dan Kontrol Industri · PNJ</div>
+      <h1>Praktik Elektronika Digital berbasis PLD dan FPGA</h1>
+      <p class="lead">Pegangan praktikum: hitung nilai N untuk tick, pembagi frekuensi, pemindaian display, dan tachometer; cek pin board; dan salin modul Verilog yang dipakai dari Minggu 9 sampai proyek akhir.</p>
+      <div class="facts">
+        <span class="chip">EP4CE6E22C8 · Cyclone IV E</span>
+        <span class="chip">clk 50 MHz · pin 23</span>
+        <span class="chip">Quartus Prime · Verilog</span>
+      </div>
+    </div>
+    <div class="scope" aria-label="Contoh display 7-segment menghitung detik">
+      <svg id="heroSeg" viewBox="0 0 400 150" role="img" aria-label="Display menghitung menit dan detik"></svg>
+      <div class="cap"><span>tick_gen #(.N(<b>50_000_000</b>)) → 1 Hz</span><span>display4 · 1 ms/digit</span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="kalkulator">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Alat</div>
+      <h2>Kalkulator clock</h2>
+      <p>Masukkan kebutuhan waktu atau frekuensi; nilai N, lebar counter, dan baris instansiasi Verilog langsung muncul. Semua perhitungan memakai satu clock dengan enable, sesuai gaya rancangan di mata kuliah ini.</p>
+    </div>
+    <div class="fclk">
+      <label for="fclk">Frekuensi clock</label>
+      <div class="row" style="max-width:220px"><input id="fclk" type="number" min="0.001" step="any" value="50"><select id="fclkU" aria-label="Satuan clock"><option value="1e6" selected>MHz</option><option value="1e3">kHz</option></select></div>
+      <span class="chip">osilator board OurFPGA = 50 MHz</span>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Jenis perhitungan">
+      <button class="tab" role="tab" id="t-tick" aria-controls="p-tick" aria-selected="true">Tick / enable</button>
+      <button class="tab" role="tab" id="t-sq" aria-controls="p-sq" aria-selected="false">Gelombang kotak</button>
+      <button class="tab" role="tab" id="t-scan" aria-controls="p-scan" aria-selected="false">Pindai display</button>
+      <button class="tab" role="tab" id="t-mod" aria-controls="p-mod" aria-selected="false">Counter mod-N</button>
+      <button class="tab" role="tab" id="t-tacho" aria-controls="p-tacho" aria-selected="false">Tachometer</button>
+    </div>
+
+    <!-- TICK -->
+    <div class="panel" role="tabpanel" id="p-tick" aria-labelledby="t-tick">
+      <div class="calc">
+        <div class="inputs">
+          <div class="field">
+            <label>Masukan</label>
+            <div class="seg-ctl" id="tickMode"><button type="button" data-m="t" aria-pressed="true">Periode tick</button><button type="button" data-m="f" aria-pressed="false">Frekuensi tick</button></div>
+          </div>
+          <div class="field">
+            <label for="tickVal" id="tickLab">Selang antartick</label>
+            <div class="row"><input id="tickVal" type="number" min="0" step="any" value="1"><select id="tickU" aria-label="Satuan"></select></div>
+          </div>
+          <div class="field"><label>Contoh</label>
+            <div class="presets" id="tickPre">
+              <button type="button" data-v="1" data-u="1" data-m="t">1 s (detik)</button>
+              <button type="button" data-v="250" data-u="1e-3" data-m="t">0,25 s (LED berjalan)</button>
+              <button type="button" data-v="1" data-u="1e-3" data-m="t">1 ms (pindai)</button>
+              <button type="button" data-v="1" data-u="1e3" data-m="f">1 kHz (sampel)</button>
+            </div>
+          </div>
+          <div class="formula">N = f<sub>clk</sub> × t = f<sub>clk</sub> / f<sub>tick</sub><br>bit = $clog2(N)</div>
+        </div>
+        <div class="results">
+          <div class="big"><span class="lab">N</span><span class="val" id="tickN">–</span></div>
+          <div class="kv">
+            <div><span>Lebar counter</span><b id="tickBits">–</b></div>
+            <div><span>Rentang cnt</span><b id="tickRange">–</b></div>
+            <div><span>f tick sebenarnya</span><b id="tickF">–</b></div>
+            <div><span>Lebar pulsa tick</span><b id="tickW">–</b></div>
+          </div>
+          <div class="status" id="tickStat"></div>
+          <div class="code"><button class="copy" type="button" data-copy="tickCode">Salin</button><pre id="tickCode"></pre></div>
+          <div class="diagram"><svg id="tickSvg" viewBox="0 0 560 150"></svg><small id="tickNote"></small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SQUARE -->
+    <div class="panel" role="tabpanel" id="p-sq" aria-labelledby="t-sq" hidden>
+      <div class="calc">
+        <div class="inputs">
+          <div class="field">
+            <label for="sqVal">Frekuensi keluaran</label>
+            <div class="row"><input id="sqVal" type="number" min="0" step="any" value="2"><select id="sqU" aria-label="Satuan"><option value="1">Hz</option><option value="1e3" selected>kHz</option><option value="1e6">MHz</option></select></div>
+            <small>Untuk LED berkedip atau nada buzzer (speaker pasif di pin 110 butuh sinyal nada).</small>
+          </div>
+          <div class="field"><label>Contoh</label>
+            <div class="presets" id="sqPre">
+              <button type="button" data-v="0.5" data-u="1">0,5 Hz (LED 1 s nyala/1 s padam)</button>
+              <button type="button" data-v="2" data-u="1">2 Hz (kedip cepat)</button>
+              <button type="button" data-v="1" data-u="1e3">1 kHz (nada)</button>
+              <button type="button" data-v="2" data-u="1e3">2 kHz (nada alarm)</button>
+            </div>
+          </div>
+          <div class="formula">N = f<sub>clk</sub> / (2 · f<sub>out</sub>)<br>keluaran dibalik setiap tick → 1 periode = 2 tick</div>
+        </div>
+        <div class="results">
+          <div class="big"><span class="lab">N</span><span class="val" id="sqN">–</span></div>
+          <div class="kv">
+            <div><span>Lebar counter</span><b id="sqBits">–</b></div>
+            <div><span>f keluaran sebenarnya</span><b id="sqF">–</b></div>
+            <div><span>Periode keluaran</span><b id="sqT">–</b></div>
+            <div><span>Waktu tinggi = rendah</span><b id="sqH">–</b></div>
+          </div>
+          <div class="status" id="sqStat"></div>
+          <div class="code"><button class="copy" type="button" data-copy="sqCode">Salin</button><pre id="sqCode"></pre></div>
+          <div class="diagram"><svg id="sqSvg" viewBox="0 0 560 150"></svg><small id="sqNote"></small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCAN -->
+    <div class="panel" role="tabpanel" id="p-scan" aria-labelledby="t-scan" hidden>
+      <div class="calc">
+        <div class="inputs">
+          <div class="field">
+            <label for="scanVal">Giliran per digit</label>
+            <div class="row"><input id="scanVal" type="number" min="0" step="any" value="1"><select id="scanU" aria-label="Satuan"><option value="1e-6">µs</option><option value="1e-3" selected>ms</option></select></div>
+          </div>
+          <div class="field">
+            <label for="scanD">Jumlah digit</label>
+            <input id="scanD" type="number" min="1" max="8" step="1" value="4">
+            <small>Board OurFPGA: 4 digit, DIG1 paling kiri … DIG4 paling kanan.</small>
+          </div>
+          <div class="field"><label>Contoh</label>
+            <div class="presets" id="scanPre">
+              <button type="button" data-v="1" data-u="1e-3">1 ms (anjuran)</button>
+              <button type="button" data-v="2" data-u="1e-3">2 ms</button>
+              <button type="button" data-v="100" data-u="1e-3">100 ms (lihat giliran)</button>
+            </div>
+          </div>
+          <div class="formula">N_SCAN = f<sub>clk</sub> × t<sub>digit</sub><br>putaran per detik = 1 / (jumlah digit × t<sub>digit</sub>)</div>
+        </div>
+        <div class="results">
+          <div class="big"><span class="lab">N_SCAN</span><span class="val" id="scanN">–</span></div>
+          <div class="kv">
+            <div><span>Lebar counter</span><b id="scanBits">–</b></div>
+            <div><span>Satu putaran</span><b id="scanT">–</b></div>
+            <div><span>Putaran per detik</span><b id="scanR">–</b></div>
+            <div><span>Nyala tiap digit</span><b id="scanDuty">–</b></div>
+          </div>
+          <div class="status" id="scanStat"></div>
+          <div class="code"><button class="copy" type="button" data-copy="scanCode">Salin</button><pre id="scanCode"></pre></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOD N -->
+    <div class="panel" role="tabpanel" id="p-mod" aria-labelledby="t-mod" hidden>
+      <div class="calc">
+        <div class="inputs">
+          <div class="field">
+            <label for="modN">N (jumlah keadaan)</label>
+            <input id="modN" type="number" min="2" step="1" value="60">
+          </div>
+          <div class="field">
+            <label for="modT">Diberi enable setiap</label>
+            <div class="row"><input id="modT" type="number" min="0" step="any" value="1"><select id="modTU" aria-label="Satuan"><option value="1e-3">ms</option><option value="1" selected>s</option></select></div>
+            <small>Isi selang tick yang menjadi en counter ini (opsional).</small>
+          </div>
+          <div class="field"><label>Contoh</label>
+            <div class="presets" id="modPre">
+              <button type="button" data-v="10">10 (satuan)</button>
+              <button type="button" data-v="6">6 (puluhan)</button>
+              <button type="button" data-v="24">24 (jam)</button>
+              <button type="button" data-v="60">60</button>
+            </div>
+          </div>
+          <div class="formula">bit = $clog2(N) = ⌈log<sub>2</sub> N⌉<br>tc = en &amp;&amp; (q == N − 1)</div>
+        </div>
+        <div class="results">
+          <div class="big"><span class="lab">Bit</span><span class="val" id="modBits">–</span></div>
+          <div class="kv">
+            <div><span>Rentang q</span><b id="modRange">–</b></div>
+            <div><span>Keadaan tak terpakai</span><b id="modUnused">–</b></div>
+            <div><span>Satu putaran penuh</span><b id="modCycle">–</b></div>
+            <div><span>Frekuensi tc</span><b id="modTc">–</b></div>
+          </div>
+          <div class="code"><button class="copy" type="button" data-copy="modCode">Salin</button><pre id="modCode"></pre></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TACHO -->
+    <div class="panel" role="tabpanel" id="p-tacho" aria-labelledby="t-tacho" hidden>
+      <div class="calc">
+        <div class="inputs">
+          <div class="field">
+            <label for="tgVal">Waktu gerbang (gate time)</label>
+            <div class="row"><input id="tgVal" type="number" min="0" step="any" value="1"><select id="tgU" aria-label="Satuan"><option value="1e-3">ms</option><option value="1" selected>s</option></select></div>
+            <small>Selama waktu ini pulsa sensor dihitung, lalu hasilnya ditahan di display.</small>
+          </div>
+          <div class="field">
+            <label for="ppr">Pulsa per putaran (PPR)</label>
+            <input id="ppr" type="number" min="1" step="1" value="1">
+          </div>
+          <div class="field">
+            <label for="tdig">Digit display</label>
+            <input id="tdig" type="number" min="1" max="8" step="1" value="4">
+          </div>
+          <div class="formula">N_GATE = f<sub>clk</sub> × T<sub>gate</sub><br>f = hitungan / T<sub>gate</sub> · RPM = 60 · f / PPR</div>
+        </div>
+        <div class="results">
+          <div class="big"><span class="lab">N_GATE</span><span class="val" id="tgN">–</span></div>
+          <div class="kv">
+            <div><span>Lebar counter gerbang</span><b id="tgBits">–</b></div>
+            <div><span>Resolusi frekuensi</span><b id="tgRes">–</b></div>
+            <div><span>Resolusi putaran</span><b id="tgRpmRes">–</b></div>
+            <div><span>Pembaruan display</span><b id="tgUpd">–</b></div>
+            <div><span>Frekuensi maks. terbaca</span><b id="tgFmax">–</b></div>
+            <div><span>Putaran maks. terbaca</span><b id="tgRpmMax">–</b></div>
+          </div>
+          <div class="status" id="tgStat"></div>
+          <div class="code"><button class="copy" type="button" data-copy="tgCode">Salin</button><pre id="tgCode"></pre></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="peta">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Jadwal</div>
+      <h2>Peta 16 minggu</h2>
+      <p>Minggu 1–7 memakai schematic entry, Minggu 9–15 menulis ulang dan memperluasnya dalam Verilog. Modul yang dibuat di satu minggu dipakai lagi pada minggu berikutnya.</p>
+    </div>
+    <div class="weeks" id="weeks"></div>
+  </div>
+</section>
+
+<section id="board">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Perangkat keras</div>
+      <h2>Board &amp; pin</h2>
+      <p>Board OurFPGA dengan EP4CE6E22C8. Nomor pin dan polaritas diambil dari tabel pin dan skema board V2.1.</p>
+    </div>
+    <div class="board">
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Periferal</th><th>Sinyal</th><th>Pin FPGA</th><th>Aktif</th></tr></thead>
+          <tbody>
+            <tr><td>Osilator</td><td>FPGA_CLK</td><td class="pin">23</td><td>50 MHz</td></tr>
+            <tr><td>Tombol RESET</td><td>rst_n</td><td class="pin">25</td><td class="pol low">ditekan = 0</td></tr>
+            <tr><td>Tombol KEY1–4</td><td>key[0..3]</td><td class="pin">88, 89, 90, 91</td><td class="pol low">ditekan = 0</td></tr>
+            <tr><td>DIP switch 1–4</td><td>sw[0..3]</td><td class="pin">88, 89, 90, 91</td><td class="pol low">ON = 0</td></tr>
+            <tr><td>LED1–4</td><td>led[0..3]</td><td class="pin">87, 86, 85, 84</td><td class="pol low">menyala = 0</td></tr>
+            <tr><td>Segmen a, b, c, d</td><td>SEG0–SEG3</td><td class="pin">128, 121, 125, 129</td><td class="pol low">menyala = 0</td></tr>
+            <tr><td>Segmen e, f, g, dp</td><td>SEG4–SEG7</td><td class="pin">132, 126, 124, 127</td><td class="pol low">menyala = 0</td></tr>
+            <tr><td>Digit (kiri → kanan)</td><td>DIG1–DIG4</td><td class="pin">133, 135, 136, 137</td><td class="pol low">aktif = 0</td></tr>
+            <tr><td>Buzzer</td><td>BEEP</td><td class="pin">110</td><td class="pol note">butuh nada</td></tr>
+            <tr><td>UART</td><td>TXD, RXD</td><td class="pin">114, 115</td><td>–</td></tr>
+            <tr><td>EEPROM AT24C08</td><td>SCL, SDA</td><td class="pin">112, 113</td><td>–</td></tr>
+            <tr><td>Sensor suhu LM75</td><td>I2C_SCL, I2C_SDA</td><td class="pin">99, 98</td><td>–</td></tr>
+            <tr><td>Penerima IR</td><td>IR</td><td class="pin">100</td><td>–</td></tr>
+            <tr><td>PS/2</td><td>CLK, DATA</td><td class="pin">119, 120</td><td>–</td></tr>
+            <tr><td>VGA</td><td>HS, VS, B, G, R</td><td class="pin">101, 103, 104, 105, 106</td><td>–</td></tr>
+            <tr><td>LCD 1602/12864</td><td>RS, RW, E</td><td class="pin">141, 138, 143</td><td>–</td></tr>
+            <tr><td>LCD data</td><td>D0–D7</td><td class="pin">142, 1, 144, 3, 2, 10, 7, 11</td><td>–</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="notes">
+        <div class="note alert"><h3>Hanya empat masukan</h3><p>DIP switch dan KEY1–4 tersambung paralel ke pin yang sama (88–91). DIP yang ON menahan jalurnya di 0, sehingga tombol pasangannya tidak bekerja. Saat memakai tombol, pastikan DIP pasangannya OFF.</p></div>
+        <div class="note"><h3>Hampir semuanya aktif low</h3><p>LED, segmen (display common anode), dan digit (transistor PNP 8550) menyala bila pinnya 0. Balik sekali di modul top dengan <code>~</code>, misalnya <code>assign led = ~q;</code>, agar logika di dalam tetap aktif high.</p></div>
+        <div class="note"><h3>Urutan digit</h3><p>DIG1 paling kiri, DIG4 paling kanan. Agar angka satuan tampil di kanan, pasang <code>dig[0]</code> ke DIG4 (pin 137).</p></div>
+        <div class="note"><h3>Buzzer = speaker pasif</h3><p>Memberi logika 0 saja hanya menghasilkan bunyi klik. Gunakan <code>clk_div_sq</code> untuk membuat nada, lalu <code>beep = bunyi ? nada : 1'b1</code>.</p></div>
+        <div class="code"><button class="copy" type="button" data-copy="qsfCode">Salin</button><pre id="qsfCode"></pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="modul">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Pustaka</div>
+      <h2>Modul inti</h2>
+      <p>Lima modul yang terus dipakai dari Minggu 10 sampai proyek akhir. Semua sudah diuji dengan testbench.</p>
+    </div>
+    <div class="mods-grid">
+      <div class="mod-list" role="tablist" aria-label="Modul" id="modList"></div>
+      <div class="mod-view"><p id="modDesc"></p><div class="code"><button class="copy" type="button" data-copy="modSrc">Salin</button><pre id="modSrc"></pre></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="aturan">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Ingat</div>
+      <h2>Aturan emas</h2>
+    </div>
+    <div class="rules">
+      <div class="rule"><span class="pair">always @(posedge clk) ↔ &lt;=</span><p>Blok sekuensial memakai penugasan non-blocking, sehingga semua flip-flop berubah serentak.</p></div>
+      <div class="rule"><span class="pair">always @(*) ↔ =</span><p>Blok kombinasional memakai penugasan blocking. Jangan campur = dan &lt;= dalam satu blok.</p></div>
+      <div class="rule"><span class="pair">else + default</span><p>Di blok kombinasional setiap keluaran harus diberi nilai di semua cabang, atau terbentuk latch.</p></div>
+      <div class="rule"><span class="pair">satu clock, banyak enable</span><p>Semua flip-flop memakai clk 50 MHz. Kecepatan diatur dengan pulsa tick sebagai enable, bukan clock turunan.</p></div>
+      <div class="rule"><span class="pair">tc = en &amp;&amp; (q == N − 1)</span><p>Terminal count disertai syarat en agar lebarnya tepat satu periode clock dan aman dipakai sebagai enable berikutnya.</p></div>
+      <div class="rule"><span class="pair">N kecil di testbench</span><p>Parameter memungkinkan simulasi memakai N = 4 tanpa mengubah rancangan; di board biarkan nilai sebenarnya.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Praktik Elektronika Digital berbasis PLD dan FPGA · D4 Instrumentasi dan Kontrol Industri · Jurusan Teknik Elektro, Politeknik Negeri Jakarta</span>
+    <span>Dosen pengampu: Hariyanto, S.Pd., M.T. · Data pin: Development board pin information dan skema OurFPGA V2.1</span>
+  </div>
+</footer>
+
+<script>
+const MODS = [{"name": "seg7_dec", "week": "Minggu 10", "desc": "Decoder heksadesimal ke 7-segment, ditulis aktif high (1 = segmen menyala). Pembalikan untuk display common anode dilakukan sekali di modul top atau di display4.", "src": "// Ditulis aktif high; polaritas display ditangani di top-level.\nmodule seg7_dec (\n    input      [3:0] bin,\n    output reg [6:0] seg     // {g,f,e,d,c,b,a}, 1 = segmen menyala\n);\n    always @(*) begin\n        case (bin)\n            4'h0: seg = 7'b0111111;   4'h8: seg = 7'b1111111;\n            4'h1: seg = 7'b0000110;   4'h9: seg = 7'b1101111;\n            4'h2: seg = 7'b1011011;   4'hA: seg = 7'b1110111;\n            4'h3: seg = 7'b1001111;   4'hB: seg = 7'b1111100;\n            4'h4: seg = 7'b1100110;   4'hC: seg = 7'b0111001;\n            4'h5: seg = 7'b1101101;   4'hD: seg = 7'b1011110;\n            4'h6: seg = 7'b1111101;   4'hE: seg = 7'b1111001;\n            4'h7: seg = 7'b0000111;   4'hF: seg = 7'b1110001;\n            default: seg = 7'b0000000;\n        endcase\n    end\nendmodule"}, {"name": "tick_gen", "week": "Minggu 11–12", "desc": "Pembangkit pulsa tick selebar satu clock setiap N clock. Dipakai sebagai enable, bukan sebagai clock. Hitung N dengan kalkulator Tick / enable.", "src": "// Keluaran tick = 1 selama SATU periode clock, setiap N clock.\n// f_tick = f_clk / N ; lebar counter dihitung otomatis dengan $clog2(N)\nmodule tick_gen #(parameter N = 50_000_000) (\n    input  clk, rst,\n    output tick\n);\n    reg [$clog2(N)-1:0] cnt;\n\n    assign tick = (cnt == N - 1);\n\n    always @(posedge clk) begin\n        if (rst || tick) cnt <= 0;\n        else             cnt <= cnt + 1'b1;\n    end\nendmodule"}, {"name": "counter_n", "week": "Minggu 12", "desc": "Counter modulo-N berparameter dengan terminal count. Rangkaikan tc ke en counter berikutnya untuk counter bertingkat (detik, menit, jam).", "src": "// Menghitung 0 .. N-1 lalu kembali ke 0. tc = 1 saat q = N-1 DAN en = 1,\n// sehingga aman dipakai sebagai enable counter tingkat berikutnya.\nmodule counter_n #(parameter N = 10) (\n    input                      clk, rst, en,\n    output reg [$clog2(N)-1:0] q,\n    output                     tc\n);\n    assign tc = en && (q == N - 1);\n\n    always @(posedge clk) begin\n        if (rst)     q <= 0;\n        else if (en) q <= (q == N - 1) ? 0 : q + 1'b1;\n    end\nendmodule"}, {"name": "clk_div_sq", "week": "Minggu 12", "desc": "Pembangkit gelombang kotak duty 50 %: keluaran dibalik setiap tick. Untuk LED berkedip dan nada buzzer. Hitung N dengan kalkulator Gelombang kotak.", "src": "// f_out = f_clk / (2 x N)\nmodule clk_div_sq #(parameter N = 50_000_000) (\n    input      clk, rst,\n    output reg out\n);\n    wire t;\n\n    tick_gen #(.N(N)) u_t (.clk(clk), .rst(rst), .tick(t));\n\n    always @(posedge clk)\n        if (rst)    out <= 1'b0;\n        else if (t) out <= ~out;\nendmodule"}, {"name": "display4", "week": "Minggu 12", "desc": "Pengendali display multipleks empat digit. d0 tampil di digit yang tersambung ke dig[0]; pasang dig[0] ke DIG4 (pin 137) agar d0 tampil paling kanan.", "src": "// Setiap digit mendapat giliran 1 ms (50 MHz / 50.000), seluruh display\n// diperbarui 250 kali per detik sehingga keempat digit tampak menyala bersama.\nmodule display4 #(parameter N_SCAN = 50_000) (\n    input            clk, rst,\n    input      [3:0] d0, d1, d2, d3,   // nilai tiap digit (d0 = DIG1)\n    output     [6:0] seg,              // segmen {g..a}, aktif low (common anode)\n    output reg [3:0] dig               // pemilih digit, aktif low (PNP)\n);\n    wire       t;\n    reg  [1:0] pilih;\n    reg  [3:0] nilai;\n    wire [6:0] seg_h;\n\n    tick_gen #(.N(N_SCAN)) u_scan (.clk(clk), .rst(rst), .tick(t));\n\n    always @(posedge clk)\n        if (rst)    pilih <= 2'd0;\n        else if (t) pilih <= pilih + 2'd1;\n\n    always @(*) begin\n        case (pilih)\n            2'd0:    begin nilai = d0; dig = 4'b1110; end\n            2'd1:    begin nilai = d1; dig = 4'b1101; end\n            2'd2:    begin nilai = d2; dig = 4'b1011; end\n            default: begin nilai = d3; dig = 4'b0111; end\n        endcase\n    end\n\n    seg7_dec u_dec (.bin(nilai), .seg(seg_h));   // dari M10\n    assign seg = ~seg_h;                         // hapus ~ bila common cathode\nendmodule"}];
+const WEEKS = [{"n": 1, "k": "sch", "t": "Pengenalan PLD dan arsitektur FPGA Cyclone IV; alur Quartus; gerbang dasar switch → LED", "m": []}, {"n": 2, "k": "sch", "t": "Fungsi Boolean, SOP, dan verifikasi K-map", "m": []}, {"n": 3, "k": "sch", "t": "Multiplexer dan demultiplexer", "m": []}, {"n": 4, "k": "sch", "t": "Encoder, decoder, dan penampil 7-segment", "m": []}, {"n": 5, "k": "sch", "t": "Half/full adder, ripple-carry adder, komparator", "m": []}, {"n": 6, "k": "sch", "t": "Flip-flop D, JK, T: pintu masuk rangkaian sekuensial", "m": []}, {"n": 7, "k": "sch", "t": "Register dan counter dasar; pembagi frekuensi", "m": []}, {"n": 8, "k": "ex", "t": "Ujian Tengah Semester", "m": []}, {"n": 9, "k": "v", "t": "Transisi ke Verilog: gerbang, MUX, decoder, tiga gaya penulisan", "m": ["mux4to1", "dec2to4"]}, {"n": 10, "k": "v", "t": "Decoder 7-segment dan penjumlah: struktural vs behavioral", "m": ["seg7_dec", "rca4"]}, {"n": 11, "k": "v", "t": "Register dan shift register; blocking vs non-blocking", "m": ["reg4", "shift_sipo", "tick_gen"]}, {"n": 12, "k": "v", "t": "Counter, pembagi frekuensi, dan display multipleks", "m": ["counter_n", "clk_div_sq", "display4"]}, {"n": 13, "k": "v", "t": "Finite State Machine Moore/Mealy: detektor urutan 101", "m": ["fsm"]}, {"n": 14, "k": "v", "t": "Aplikasi FSM: pengendali lampu lalu lintas", "m": ["traffic"]}, {"n": 15, "k": "v", "t": "PWM, sinkronisasi, dan debouncing tombol", "m": ["pwm", "sync2", "debounce"]}, {"n": 16, "k": "ex", "t": "Ujian Akhir Semester: proyek akhir tachometer (frequency counter) dan demo", "m": ["freq_meter"]}];
+const QSF = "# Pin board OurFPGA (EP4CE6E22C8) untuk file .qsf\nset_location_assignment PIN_23 -to clk\nset_location_assignment PIN_25 -to rst_n\nset_location_assignment PIN_88 -to sw[0]\nset_location_assignment PIN_89 -to sw[1]\nset_location_assignment PIN_90 -to sw[2]\nset_location_assignment PIN_91 -to sw[3]\nset_location_assignment PIN_87 -to led[0]\nset_location_assignment PIN_86 -to led[1]\nset_location_assignment PIN_85 -to led[2]\nset_location_assignment PIN_84 -to led[3]\nset_location_assignment PIN_128 -to seg[0]\nset_location_assignment PIN_121 -to seg[1]\nset_location_assignment PIN_125 -to seg[2]\nset_location_assignment PIN_129 -to seg[3]\nset_location_assignment PIN_132 -to seg[4]\nset_location_assignment PIN_126 -to seg[5]\nset_location_assignment PIN_124 -to seg[6]\nset_location_assignment PIN_137 -to dig[0]\nset_location_assignment PIN_136 -to dig[1]\nset_location_assignment PIN_135 -to dig[2]\nset_location_assignment PIN_133 -to dig[3]\nset_location_assignment PIN_110 -to beep";
+
+const nf = (x, d = 0) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: d, minimumFractionDigits: 0 }).format(x);
+const und = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "_");
+const clog2 = (n) => n <= 1 ? 0 : Math.ceil(Math.log2(n));
+function fmtF(f){ if(!isFinite(f)) return "–"; if(f>=1e6) return nf(f/1e6,4)+" MHz"; if(f>=1e3) return nf(f/1e3,4)+" kHz"; if(f>=1) return nf(f,4)+" Hz"; return nf(f,6)+" Hz"; }
+function fmtT(t){ if(!isFinite(t)) return "–"; if(t>=1) return nf(t,4)+" s"; if(t>=1e-3) return nf(t*1e3,4)+" ms"; if(t>=1e-6) return nf(t*1e6,4)+" µs"; return nf(t*1e9,3)+" ns"; }
+const $ = (id) => document.getElementById(id);
+const fclk = () => { const v = parseFloat($("fclk").value) * parseFloat($("fclkU").value); return v > 0 ? v : NaN; };
+
+function hl(src){
+  const esc = (s) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return src.split("\n").map((ln) => {
+    const i = ln.indexOf("//"); let code = i >= 0 ? ln.slice(0, i) : ln; const cm = i >= 0 ? ln.slice(i) : "";
+    code = esc(code).replace(/\b(\d+'[bdh][0-9a-fA-F_]+|\d[\d_]*)\b/g, '<span class="nm">$1</span>')
+      .replace(/\b(module|endmodule|input|output|reg|wire|always|begin|end|if|else|assign|parameter|posedge|negedge|case|endcase|default|or)\b/g, '<span class="kw">$1</span>');
+    return code + (cm ? '<span class="cm">' + esc(cm) + "</span>" : "");
+  }).join("\n");
+}
+function setCode(id, src){ const el = $(id); el.dataset.raw = src; el.innerHTML = hl(src); }
+function status(id, kind, msg){ const el = $(id); el.className = "status " + kind; el.textContent = msg; }
+
+// ---------- diagram waktu (SVG, garis ortogonal) ----------
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function drawTiming(svgId, N, square){
+  const svg = $(svgId); const steps = square ? 4 * N + 2 : 2 * N + 4; const cycles = Math.ceil(steps / 1);
+  const nC = square ? Math.min(2 * N + 2, 22) : Math.min(N * 2 + 2, 22);
+  const x0 = 78, W = 560 - x0 - 8, step = W / (nC * 2);
+  const ink = css("--ink"), mut = css("--muted"), led = css("--led"), sig = css("--signal"), line = css("--line");
+  let g = "";
+  const lab = (t, y) => `<text x="${x0 - 8}" y="${y + 13}" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="${ink}">${t}</text>`;
+  const wave = (bits, y, col) => { let d = ""; let prev = null; for (let i = 0; i < bits.length; i++) { const yy = bits[i] ? y : y + 18; const x = x0 + i * step; if (prev !== null && prev !== yy) d += `L${x},${yy}`; else if (prev === null) d += `M${x},${yy}`; d += `L${x + step},${yy}`; prev = yy; } return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.8"/>`; };
+  for (let k = 0; k <= nC; k++) g += `<line x1="${x0 + 2 * k * step}" y1="6" x2="${x0 + 2 * k * step}" y2="146" stroke="${line}" stroke-width="1" stroke-dasharray="2 3"/>`;
+  const clk = []; for (let k = 0; k < nC; k++) clk.push(1, 0);
+  g += lab("clk", 8) + wave(clk, 8, mut);
+  // cnt bus
+  g += lab("cnt", 44);
+  for (let k = 0; k < nC; k++) { const x = x0 + 2 * k * step, w = 2 * step; g += `<rect x="${x}" y="44" width="${w}" height="18" fill="none" stroke="${sig}" stroke-width="1.2"/>`; if (w > 14) g += `<text x="${x + w / 2}" y="57" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="${w > 26 ? 10 : 8}" fill="${ink}">${k % N}</text>`; }
+  const tick = []; for (let k = 0; k < nC; k++) { const v = k % N === N - 1 ? 1 : 0; tick.push(v, v); }
+  g += lab("tick", 80) + wave(tick, 80, led);
+  if (square) { const out = []; let o = 0; for (let k = 0; k < nC; k++) { out.push(o, o); if (k % N === N - 1) o ^= 1; } g += lab("out", 116) + wave(out, 116, sig); }
+  svg.setAttribute("viewBox", `0 0 560 ${square ? 150 : 112}`);
+  svg.innerHTML = g;
+}
+
+// ---------- TICK ----------
+let tickMode = "t";
+function tickUnits(){ const s = $("tickU"); s.innerHTML = tickMode === "t" ? '<option value="1e-6">µs</option><option value="1e-3">ms</option><option value="1" selected>s</option>' : '<option value="1" selected>Hz</option><option value="1e3">kHz</option><option value="1e6">MHz</option>'; $("tickLab").textContent = tickMode === "t" ? "Selang antartick" : "Frekuensi tick"; }
+function calcTick(){
+  const f = fclk(); const v = parseFloat($("tickVal").value) * parseFloat($("tickU").value);
+  const t = tickMode === "t" ? v : 1 / v; const Nx = f * t; const N = Math.round(Nx);
+  if (!(N >= 2) || !isFinite(N)) { $("tickN").textContent = "–"; ["tickBits","tickRange","tickF","tickW"].forEach((i) => $(i).textContent = "–"); status("tickStat","bad","N harus minimal 2. Perbesar selang tick atau periksa frekuensi clock."); setCode("tickCode","// N tidak sah"); $("tickSvg").innerHTML=""; $("tickNote").textContent=""; return; }
+  const fa = f / N, err = (fa - 1 / t) / (1 / t) * 100;
+  $("tickN").textContent = nf(N); $("tickBits").textContent = clog2(N) + " bit"; $("tickRange").textContent = "0 – " + nf(N - 1);
+  $("tickF").textContent = fmtF(fa); $("tickW").textContent = fmtT(1 / f) + " (1 clock)";
+  if (Math.abs(Nx - N) > 1e-6) status("tickStat","warn",`N sebenarnya ${nf(Nx,3)} dibulatkan ke ${nf(N)}; frekuensi tick meleset ${nf(err,4)} %.`);
+  else status("tickStat","ok",`N bulat, frekuensi tepat. Tick selebar 1 clock tidak terlihat bila dipasang ke LED; pakai sebagai enable.`);
+  setCode("tickCode", `tick_gen #(.N(${und(N)})) u_tick (.clk(clk), .rst(rst), .tick(tick));\n// f_tick = ${fmtF(fa)}  |  cnt ${clog2(N)} bit`);
+  const Nv = Math.min(N, 6); drawTiming("tickSvg", Nv, false);
+  $("tickNote").textContent = N > 6 ? `Diagram digambar untuk N = ${Nv} agar terbaca; pola sama untuk N = ${nf(N)}.` : `Diagram untuk N = ${N}.`;
+}
+// ---------- SQUARE ----------
+function calcSq(){
+  const f = fclk(); const fo = parseFloat($("sqVal").value) * parseFloat($("sqU").value);
+  const Nx = f / (2 * fo), N = Math.round(Nx);
+  if (!(N >= 2) || !isFinite(N)) { $("sqN").textContent = "–"; ["sqBits","sqF","sqT","sqH"].forEach((i) => $(i).textContent = "–"); status("sqStat","bad","N harus minimal 2: frekuensi keluaran maksimum adalah f_clk / 4."); setCode("sqCode","// N tidak sah"); $("sqSvg").innerHTML=""; $("sqNote").textContent=""; return; }
+  const fa = f / (2 * N), err = (fa - fo) / fo * 100;
+  $("sqN").textContent = nf(N); $("sqBits").textContent = clog2(N) + " bit"; $("sqF").textContent = fmtF(fa); $("sqT").textContent = fmtT(1 / fa); $("sqH").textContent = fmtT(N / f);
+  if (Math.abs(Nx - N) > 1e-6) status("sqStat","warn",`N sebenarnya ${nf(Nx,3)} dibulatkan ke ${nf(N)}; frekuensi meleset ${nf(err,4)} %.`);
+  else status("sqStat","ok","N bulat, frekuensi tepat, duty cycle 50 %. Lupa faktor 2 membuat frekuensi menjadi setengahnya.");
+  setCode("sqCode", `clk_div_sq #(.N(${und(N)})) u_div (.clk(clk), .rst(rst), .out(out));\n// f_out = ${fmtF(fa)}  |  periode ${fmtT(1 / fa)}`);
+  const Nv = Math.min(N, 4); drawTiming("sqSvg", Nv, true);
+  $("sqNote").textContent = N > 4 ? `Diagram digambar untuk N = ${Nv}; keluaran berbalik setiap tick untuk N = ${nf(N)}.` : `Diagram untuk N = ${N}.`;
+}
+// ---------- SCAN ----------
+function calcScan(){
+  const f = fclk(); const t = parseFloat($("scanVal").value) * parseFloat($("scanU").value); const D = Math.max(1, Math.round(parseFloat($("scanD").value) || 4));
+  const N = Math.round(f * t);
+  if (!(N >= 2) || !isFinite(N)) { $("scanN").textContent = "–"; ["scanBits","scanT","scanR","scanDuty"].forEach((i) => $(i).textContent = "–"); status("scanStat","bad","N_SCAN harus minimal 2."); setCode("scanCode","// N_SCAN tidak sah"); return; }
+  const tr = D * N / f, rate = 1 / tr;
+  $("scanN").textContent = nf(N); $("scanBits").textContent = clog2(N) + " bit"; $("scanT").textContent = fmtT(tr); $("scanR").textContent = nf(rate, 1) + " kali"; $("scanDuty").textContent = nf(100 / D, 1) + " %";
+  if (rate < 50) status("scanStat","bad",`Hanya ${nf(rate,1)} putaran per detik: tampilan akan berkedip atau terlihat bergantian. Perkecil giliran per digit.`);
+  else if (rate < 100) status("scanStat","warn",`${nf(rate,1)} putaran per detik: masih bisa tampak berkedip, terutama dilihat sambil bergerak. Disarankan di atas 100.`);
+  else if (N / f < 50e-6) status("scanStat","warn","Giliran sangat singkat: segmen digit tetangga bisa tampak samar (ghosting) karena transistor belum sempat mati.");
+  else status("scanStat","ok",`${nf(rate,0)} putaran per detik: keempat digit tampak menyala bersamaan.`);
+  setCode("scanCode", `display4 #(.N_SCAN(${und(N)})) u_disp (\n    .clk(clk), .rst(rst),\n    .d0(satuan), .d1(puluhan), .d2(4'd0), .d3(4'd0),\n    .seg(seg), .dig(dig));`);
+}
+// ---------- MOD N ----------
+function calcMod(){
+  const N = Math.round(parseFloat($("modN").value)); const T = parseFloat($("modT").value) * parseFloat($("modTU").value);
+  if (!(N >= 2)) { ["modBits","modRange","modUnused","modCycle","modTc"].forEach((i) => $(i).textContent = "–"); setCode("modCode","// N minimal 2"); return; }
+  const b = clog2(N);
+  $("modBits").textContent = b + " bit"; $("modRange").textContent = "0 – " + nf(N - 1); $("modUnused").textContent = nf(2 ** b - N);
+  $("modCycle").textContent = T > 0 ? fmtT(N * T) : "–"; $("modTc").textContent = T > 0 ? fmtF(1 / (N * T)) : "–";
+  setCode("modCode", `counter_n #(.N(${und(N)})) u_cnt (\n    .clk(clk), .rst(rst), .en(tick),\n    .q(q),          // reg [${b - 1}:0]\n    .tc(tc));       // en && (q == ${N - 1})`);
+}
+// ---------- TACHO ----------
+function calcTacho(){
+  const f = fclk(); const Tg = parseFloat($("tgVal").value) * parseFloat($("tgU").value); const ppr = Math.max(1, Math.round(parseFloat($("ppr").value) || 1)); const dg = Math.max(1, Math.round(parseFloat($("tdig").value) || 4));
+  const N = Math.round(f * Tg);
+  if (!(N >= 2) || !isFinite(N)) { ["tgN","tgBits","tgRes","tgRpmRes","tgUpd","tgFmax","tgRpmMax"].forEach((i) => $(i).textContent = "–"); status("tgStat","bad","Waktu gerbang terlalu singkat."); setCode("tgCode","// N_GATE tidak sah"); return; }
+  const maxCnt = 10 ** dg - 1, fmax = maxCnt / Tg, res = 1 / Tg, rpmRes = 60 / (ppr * Tg);
+  $("tgN").textContent = nf(N); $("tgBits").textContent = clog2(N) + " bit"; $("tgRes").textContent = fmtF(res); $("tgRpmRes").textContent = nf(rpmRes, 3) + " RPM";
+  $("tgUpd").textContent = nf(1 / Tg, 3) + " kali/s"; $("tgFmax").textContent = fmtF(fmax); $("tgRpmMax").textContent = nf(fmax * 60 / ppr, 1) + " RPM";
+  const direct = 60 / ppr;
+  if (Math.abs(Tg - 1) < 1e-9) status("tgStat","ok",`Dengan gerbang 1 s, angka di display langsung bernilai Hz. Untuk RPM, kalikan 60/PPR = ${nf(direct,3)}, atau pakai gerbang ${fmtT(direct)} agar display langsung menunjukkan RPM.`);
+  else status("tgStat","warn",`Hitungan di display harus dikalikan ${nf(1 / Tg,3)} untuk mendapat Hz. Gerbang yang lebih panjang memperhalus resolusi tetapi memperlambat pembaruan.`);
+  setCode("tgCode", `freq_meter #(.N_GATE(${und(N)})) u_fm (...);\n// T_gate = ${fmtT(Tg)}  |  resolusi ${fmtF(res)}  |  ${nf(rpmRes,3)} RPM (PPR ${ppr})`);
+}
+
+function calcAll(){ calcTick(); calcSq(); calcScan(); calcMod(); calcTacho(); }
+
+// ---------- tabs ----------
+const tabs = [...document.querySelectorAll(".tab")];
+function selectTab(btn){ tabs.forEach((b) => { const on = b === btn; b.setAttribute("aria-selected", on); $(b.getAttribute("aria-controls")).hidden = !on; }); try { localStorage.setItem("fpga-tab", btn.id); } catch (e) {} }
+tabs.forEach((b) => b.addEventListener("click", () => selectTab(b)));
+tabs.forEach((b, i) => b.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length]; n.focus(); selectTab(n); } }));
+try { const s = localStorage.getItem("fpga-tab"); if (s && $(s)) selectTab($(s)); } catch (e) {}
+
+document.querySelectorAll("#tickMode button").forEach((b) => b.addEventListener("click", () => { tickMode = b.dataset.m; document.querySelectorAll("#tickMode button").forEach((x) => x.setAttribute("aria-pressed", x === b)); tickUnits(); $("tickVal").value = tickMode === "t" ? 1 : 1; calcTick(); }));
+function preset(container, apply){ document.querySelectorAll(container + " button").forEach((b) => b.addEventListener("click", () => { apply(b.dataset); calcAll(); })); }
+preset("#tickPre", (d) => { if (d.m !== tickMode) document.querySelector(`#tickMode button[data-m="${d.m}"]`).click(); $("tickVal").value = d.v; $("tickU").value = d.u; });
+preset("#sqPre", (d) => { $("sqVal").value = d.v; $("sqU").value = d.u; });
+preset("#scanPre", (d) => { $("scanVal").value = d.v; $("scanU").value = d.u; });
+preset("#modPre", (d) => { $("modN").value = d.v; });
+document.querySelectorAll("input,select").forEach((el) => el.addEventListener("input", calcAll));
+
+// ---------- copy ----------
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".copy"); if (!b) return;
+  const pre = $(b.dataset.copy); const txt = pre.dataset.raw || pre.textContent;
+  const done = () => { b.textContent = "Tersalin"; setTimeout(() => (b.textContent = "Salin"), 1400); };
+  try { navigator.clipboard.writeText(txt).then(done, () => selectPre(pre, b)); } catch (err) { selectPre(pre, b); }
+});
+function selectPre(pre, b){ const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Tekan Ctrl+C"; setTimeout(() => (b.textContent = "Salin"), 2000); }
+
+// ---------- weeks ----------
+$("weeks").innerHTML = WEEKS.map((w) => `<div class="wk${w.k === "ex" ? " exam" : ""}"><div class="top"><span class="no">${w.n}</span><span class="tag ${w.k}">${w.k === "sch" ? "Schematic" : w.k === "v" ? "Verilog" : "Ujian"}</span></div><p>${w.t}</p>${w.m.length ? `<div class="mods">${w.m.map((m) => `<code>${m}</code>`).join("")}</div>` : ""}</div>`).join("");
+
+// ---------- modules ----------
+const ml = $("modList");
+ml.innerHTML = MODS.map((m, i) => `<button type="button" role="tab" aria-selected="${i === 0}" data-i="${i}"><b>${m.name}</b><span>${m.week}</span></button>`).join("");
+function showMod(i){ const m = MODS[i]; $("modDesc").textContent = m.desc; setCode("modSrc", m.src); ml.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.i == i)); }
+ml.addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showMod(+b.dataset.i); });
+showMod(0);
+setCode("qsfCode", QSF);
+
+// ---------- hero 7-segment ----------
+const SEGMAP = [0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F];
+const SEGPOLY = { a:"10,4 46,4 52,10 46,16 10,16 4,10", b:"50,14 56,8 62,14 62,58 56,64 50,58", c:"50,74 56,68 62,74 62,118 56,124 50,118", d:"10,116 46,116 52,122 46,128 10,128 4,122", e:"0,74 6,68 12,74 12,118 6,124 0,118", f:"0,14 6,8 12,14 12,58 6,64 0,58", g:"10,60 46,60 52,66 46,72 10,72 4,66" };
+function renderSeg(digits, colon){
+  const on = css("--seg-on"), off = css("--seg-off"); let g = "";
+  digits.forEach((d, i) => { const x = 18 + i * 92 + (i >= 2 ? 28 : 0), y = 10; const pat = SEGMAP[d];
+    "abcdefg".split("").forEach((s, k) => { const lit = (pat >> k) & 1; g += `<polygon transform="translate(${x},${y})" points="${SEGPOLY[s]}" fill="${lit ? on : off}"${lit ? ' style="filter:drop-shadow(0 0 4px ' + on + ')"' : ""}/>`; }); });
+  const c = colon ? on : off; g += `<rect x="196" y="48" width="9" height="9" fill="${c}"/><rect x="196" y="88" width="9" height="9" fill="${c}"/>`;
+  $("heroSeg").innerHTML = g;
+}
+let secs = 37; renderSeg([0,0,3,7], true);
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (!reduce) setInterval(() => { secs = (secs + 1) % 3600; const m = Math.floor(secs / 60), s = secs % 60; renderSeg([Math.floor(m / 10), m % 10, Math.floor(s / 10), s % 10], secs % 2 === 0); }, 1000);
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { calcAll(); });
+
+tickUnits(); calcAll();
+</script>
+
+</body>
+</html>
